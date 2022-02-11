@@ -2,23 +2,91 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from model import EmbeddingLayer
+import torch.optim as optim
+from tqdm import tqdm
+import argparse
+
+from model import *
 from tokenizer import Tokenizer
 from datasets import Dataset
 
-tokenizer = Tokenizer().load_model()
-dataset = Dataset(src='de', trg='en', data_type='train', tokenizer=tokenizer, max_seq_len=20)
-train_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False, collate_fn=dataset.collate_fn)
-embed = EmbeddingLayer(num_embeddings=16000, embedding_dim=512, padding_idx=0, layer_mode='embedding')
 
-for epoch in range(10):
-    for i, data in enumerate(train_loader):
-        inputs, outputs = data
-        print("input shape: ", inputs.shape)
-        temp = embed(inputs)
-        print("output shape: ", temp.shape)
-        break
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+n_gpu = torch.cuda.device_count()
 
+
+def get_args():
+    # arguments parser
+    parser = argparse.ArgumentParser()
+    
+    # argments
+    parser.add_argument('--mode', default='train', type=str)
+    parser.add_argument('--src', default='de', type=str)
+    parser.add_argument('--trg', default='en', type=str)
+    parser.add_argument('--max_seq_len', default=20, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--vocab_size', default=16000, type=int)
+    parser.add_argument('--learning_rate', default=0.0001, type=float)
+    parser.add_argument('--epoch', default=100, type=int)
+
+    args = parser.parse_args()
+
+    return args
+
+
+def main(args):
+    if args.mode == 'train':
+        # 1. Load tokenizer
+        tokenizer = Tokenizer().load_model()
+
+        # 2. Load dataset
+        # train dataset
+        train_dataset = Dataset(src=args.src, trg=args.trg, data_type='train', tokenizer=tokenizer, max_seq_len=args.max_seq_len)
+
+        # validation dataset
+        val_dataset = Dataset(src=args.src, trg=args.trg, data_type='valid', tokenizer=tokenizer, max_seq_len=args.max_seq_len)
+
+        # 3. Load dataloader
+        # train dataloader
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=train_dataset.collate_fn)
+
+        # validation dataloader
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=val_dataset.collate_fn)
+
+        # 4. Load transformer
+        # Transformer(num_embeddings=16000, embedding_dim=512, padding_idx=0, 
+        #             model_dim=512, q_dim=64, k_dim=64, v_dim=64, n_heads=8,
+        #             in_dim=512, hid_dim=2048, out_dim=512, max_seq_len=20, N=6)
+        model = Transformer(num_embeddings=args.vocab_size, max_seq_len=args.max_seq_len)
+
+        # 5. Load criterion
+        # Softmax + NLLLoss -> CrossEntropyLoss
+        # Since model includes final softmax layer, I'll use NLLLoss
+        criterion = nn.NLLLoss(ignore_index=0)
+
+        # 6. Load optimizer
+        # Adam optimizer
+        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.98), eps=1e-9)
+
+        # 7. Train transformer
+        EPOCH = args.epoch
+        train_step = val_step = 0
+
+
+        for epoch in range(EPOCH):
+            train_loss = val_loss = 0
+            train_total = val_total = 0
+
+            # train
+            model.train()
+            for i, data in tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc=f'EPOCH {epoch}'):
+                inputs, outputs = data
+                targets = outputs
+
+
+
+    elif args.mode == 'val':
+        pass
 
 
 

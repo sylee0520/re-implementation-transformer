@@ -1,6 +1,5 @@
 import argparse
 import sentencepiece as spm
-import logging
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -9,18 +8,22 @@ def get_args():
     parser.add_argument('--model_prefix', default='spm')
     parser.add_argument('--input_file', default='./iwslt14.tokenized.de-en/tmp/train.en-de')
 
+    args = parser.parse_args()
+    
+    return args
+
 
 class Tokenizer():
     def __init__(self) -> None:
         self.templates = '--input={} --model_prefix={} --vocab_size={} --model_type={} --bos_id=2 --eos_id=3 --pad_id=0 --unk_id=1'
-        self.spm_path = './datasets/'
+        self.spm_path = './sp/'
 
     def fit(self, input_file, model_prefix, vocab_size, model_type):
         arguments = self.templates.format(input_file, model_prefix, vocab_size, model_type)
         spm.SentencePieceTrainer.Train(arguments)
     
     def load_model(self):
-        model_path = self.spm_path + 'sp/spm.model'
+        model_path = self.spm_path + 'spm.model'
         self.spm = spm.SentencePieceProcessor()
         self.spm.Load(model_path)
 
@@ -44,9 +47,9 @@ class Tokenizer():
 def main():
     args = get_args()
     tokenizer = Tokenizer()
-    logging.info("Tokenizer starts training!")
-    tokenizer.fit('./iwslt14.tokenized.de-en/tmp/train.en-de', './datasets/sp/spm', 16000, 'bpe')
-    logging.info("Tokenizer training is done! ")
+    print("Tokenizer starts training!")
+    tokenizer.fit(args.input_file, args.model_prefix, args.vocab_size, args.model_type)
+    print("Tokenizer training is done! ")
 
 
 if __name__ == "__main__":
