@@ -26,7 +26,7 @@ class Tokenizer():
         model_path = self.spm_path + 'spm.model'
         self.spm = spm.SentencePieceProcessor()
         self.spm.Load(model_path)
-
+        self.spm.SetEncodeExtraOptions('eos:bos')
         return self
     
     def encode(self, sentences, max_length=0):
@@ -42,6 +42,9 @@ class Tokenizer():
         decoded_sentences = self.spm.Decode(encoded_sentences)
 
         return decoded_sentences
+    
+    def __len__(self):
+        return len(self.spm)
 
 
 def main():

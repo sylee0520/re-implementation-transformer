@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 import argparse
+from tensorboardX import SummaryWriter
 
 from model import *
 from tokenizer import Tokenizer
@@ -13,7 +14,7 @@ from datasets import Dataset
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
-
+summary = SummaryWriter()
 
 def get_args():
     # arguments parser
@@ -28,6 +29,7 @@ def get_args():
     parser.add_argument('--vocab_size', default=16000, type=int)
     parser.add_argument('--learning_rate', default=0.0001, type=float)
     parser.add_argument('--epoch', default=100, type=int)
+    parser.add_argument('--model_name', default='model', type=str)
 
     args = parser.parse_args()
 
@@ -71,7 +73,7 @@ def main(args):
         # 7. Train transformer
         EPOCH = args.epoch
         train_step = val_step = 0
-
+        best_loss = float("inf")
 
         for epoch in range(EPOCH):
             train_loss = val_loss = 0
@@ -83,6 +85,52 @@ def main(args):
                 inputs, outputs = data
                 targets = outputs
 
+                output_probabilities = model(inputs, outputs)
+
+                loss = criterion(output_probabilities.view(-1, args.vocab_size), targets.view(-1))
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+                train_total += 1
+
+                if (train_step + 1) % 10 == 0:
+                    summary.add_scalar('loss/train_loss', loss.item(), train_step)
+                
+                train_step += 1
+            
+            train_loss /= train_total
+
+            # val
+            model.val()
+            with torch.no_grad():
+                for i, data in tqdm(enumerate(val_dataloader), total=len(val_dataloader), desc=f'EPOCH {epoch}'):
+                    inputs, outputs = data
+                    targets = outputs
+                    
+                    output_probabilities = model(inputs, outputs)
+                    loss = criterion(output_probabilities.view(-1, args.vocab_size), targets.view(-1))
+                    val_loss += loss.item()
+                    val_total += 1
+
+                    if (val_step + 1) % 10 == 0:
+                        summary.add_scalar('loss/val_loss', loss.item(), val_step)
+                        print(f"Golden Sequence: {tokenizer.decode(outputs.tolist())[0]}")
+                        print(f"Generated Sequence: {tokenizer.decode(torch.argmax(output_probabilities, -1).tolist())[0]}")
+                    val_step += 1
+
+                val_loss /= val_total
+            
+            # results
+            print("EPOCH: {}/{} Train_Loss: {:.3f} Val_Loss: {:.3f}".format(epoch+1, EPOCH, train_loss, val_loss))
+
+            # save model
+            if val_loss < best_loss:
+                best_loss = val_loss
+                torch.save(model.state_dict(), f"outputs/{args.model_name}-{epoch}.pt")
+                print("model saved!")
 
 
     elif args.mode == 'val':
