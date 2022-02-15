@@ -60,6 +60,9 @@ def main(args):
         #             model_dim=512, q_dim=64, k_dim=64, v_dim=64, n_heads=8,
         #             in_dim=512, hid_dim=2048, out_dim=512, max_seq_len=20, N=6)
         model = Transformer(num_embeddings=args.vocab_size, max_seq_len=args.max_seq_len)
+        
+        if torch.cuda.is_available():
+            model.to('cuda')
 
         # 5. Load criterion
         # Softmax + NLLLoss -> CrossEntropyLoss
